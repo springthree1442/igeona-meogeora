@@ -571,4 +571,378 @@ function frame(now) {
 
           ellipse(ctx,
             f.x + Math.cos(a) * d,
-            f.y
+            f.y + Math.sin(a) * d + age * age * 120,
+            (f.kind === "ash" ? 8 : 3) * (1 - age * 1.8),
+            2, color
+          );
+        }
+
+        ctx.restore();
+      }
+    }
+  }
+
+  if (drag) {
+    const destination = aim(drag);
+    ctx.save();
+    ctx.strokeStyle = "#a9402c88";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([8, 7]);
+    ctx.beginPath();
+    ctx.moveTo(drag.x, drag.y);
+    ctx.lineTo(destination.x, destination.y);
+    ctx.stroke();
+    ctx.restore();
+
+    reticle(destination.x, destination.y);
+    object(ctx, kind, drag.ex, drag.ey, Number($("size").value), custom);
+  } else if (keyAim) {
+    reticle(keyboard.x, keyboard.y);
+  }
+
+  sync();
+
+  if (marks.length || flights.length || drag) start();
+}
+
+function playSound(type) {
+  if (!sound) return;
+
+  try {
+    audio = audio ||
+      new (window.AudioContext || window.webkitAudioContext)();
+    audio.resume();
+
+    const n = Math.floor(audio.sampleRate * 0.15);
+    const buffer = audio.createBuffer(1, n, audio.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < n; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2);
+    }
+
+    const source = audio.createBufferSource();
+    const filter = audio.createBiquadFilter();
+    const gain = audio.createGain();
+
+    filter.type = "lowpass";
+    filter.frequency.value =
+      type === "ash" ? 4000 : type === "custom" ? 300 : 1000;
+
+    gain.gain.value = 0.35;
+    source.buffer = buffer;
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(audio.destination);
+    source.start();
+  } catch {
+    sound = false;
+    $("sound").textContent = "효과음을 사용할 수 없어요";
+    $("sound").setAttribute("aria-pressed", "false");
+  }
+}
+
+function throwAt(x, y) {
+  if (kind === "custom" && !custom) return;
+
+  if (flights.length >= 16) {
+    ping("잠깐! 날아가는 물건이 도착하면 다시 던져주세요.");
+    return;
+  }
+
+  flights.push({
+    x, y,
+    sx: W * 0.5,
+    sy: H + 70,
+    r: Number($("size").value),
+    kind,
+    img: kind === "custom" ? custom : null,
+    seed: Math.floor(Math.random() * 2147483647),
+    born: performance.now(),
+    duration: 430,
+    hit: false
+  });
+
+  total++;
+  sync();
+  start();
+}
+
+function point(e) {
+  const b = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - b.left) / b.width * W,
+    y: (e.clientY - b.top) / b.height * H
+  };
+}
+
+/* 터치와 마우스 */
+canvas.addEventListener("pointerdown", e => {
+  if (drag || e.isPrimary === false || e.button > 0) return;
+
+  e.preventDefault();
+  canvas.focus({ preventScroll: true });
+
+  const p = point(e);
+  drag = { x: p.x, y: p.y, ex: p.x, ey: p.y, id: e.pointerId };
+  keyAim = false;
+  canvas.setPointerCapture(e.pointerId);
+
+  if (sound) {
+    try {
+      audio = audio ||
+        new (window.AudioContext || window.webkitAudioContext)();
+      audio.resume();
+    } catch {}
+  }
+
+  start();
+});
+
+canvas.addEventListener("pointermove", e => {
+  if (!drag || drag.id !== e.pointerId) return;
+  const p = point(e);
+  drag.ex = p.x;
+  drag.ey = p.y;
+  start();
+});
+
+canvas.addEventListener("pointerup", e => {
+  if (!drag || drag.id !== e.pointerId) return;
+
+  const p = point(e);
+  drag.ex = p.x;
+  drag.ey = p.y;
+
+  const previous = drag;
+  const destination = aim(drag);
+  drag = null;
+
+  if (canvas.hasPointerCapture(e.pointerId)) {
+    canvas.releasePointerCapture(e.pointerId);
+  }
+
+  if (Math.hypot(
+    previous.ex - previous.x,
+    previous.ey - previous.y
+  ) >= 5) {
+    throwAt(destination.x, destination.y);
+  } else {
+    ping("살짝 끌어서 놓으면 던져져요.");
+    start();
+  }
+});
+
+function cancelDrag(e) {
+  if (drag && drag.id === e.pointerId) {
+    drag = null;
+    start();
+  }
+}
+
+canvas.addEventListener("pointercancel", cancelDrag);
+canvas.addEventListener("lostpointercapture", cancelDrag);
+
+canvas.addEventListener("keydown", e => {
+  if (![
+    "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "Enter"
+  ].includes(e.key)) return;
+
+  e.preventDefault();
+  keyAim = true;
+
+  if (e.key === "ArrowUp") keyboard.y -= 25;
+  if (e.key === "ArrowDown") keyboard.y += 25;
+  if (e.key === "ArrowLeft") keyboard.x -= 25;
+  if (e.key === "ArrowRight") keyboard.x += 25;
+
+  keyboard.x = clamp(keyboard.x, 45, W - 45);
+  keyboard.y = clamp(keyboard.y, 45, H - 45);
+
+  if (e.key === " " || e.key === "Enter") {
+    throwAt(keyboard.x, keyboard.y);
+  }
+
+  start();
+});
+
+/* 선택 버튼 */
+function icons() {
+  document.querySelectorAll(".item").forEach(button => {
+    const icon = button.querySelector("canvas");
+    const c = icon.getContext("2d");
+    c.clearRect(0, 0, icon.width, icon.height);
+
+    object(c, button.dataset.kind, 62, 54, 35,
+      button.dataset.kind === "custom" ? custom : null);
+  });
+}
+
+function select(type) {
+  kind = type;
+
+  document.querySelectorAll(".item").forEach(button => {
+    button.setAttribute("aria-pressed",
+      String(button.dataset.kind === type));
+  });
+
+  start();
+}
+
+document.querySelectorAll(".item").forEach(button => {
+  button.addEventListener("click", () => select(button.dataset.kind));
+});
+
+/* 이미지 읽기 */
+async function readImage(file) {
+  if (!file) throw Error("파일을 선택해주세요.");
+  if (file.size > 25 * 1024 * 1024) {
+    throw Error("25MB 이하의 사진을 선택해주세요.");
+  }
+
+  const url = URL.createObjectURL(file);
+
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+
+    if (!img.naturalWidth) throw Error();
+
+    const scale = Math.min(
+      1, 2000 / Math.max(img.naturalWidth, img.naturalHeight)
+    );
+
+    const out = document.createElement("canvas");
+    out.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    out.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    out.getContext("2d").drawImage(img, 0, 0, out.width, out.height);
+
+    return out;
+  } catch {
+    throw Error("이 이미지를 열 수 없어요. JPG, PNG 또는 WebP로 다시 선택해주세요.");
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+$("targetFile").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const request = ++targetRequest;
+  ping("사진을 불러오는 중…");
+
+  try {
+    const img = await readImage(file);
+    if (request !== targetRequest) return;
+
+    target = img;
+    marks = [];
+    flights = [];
+    total = 0;
+    drag = null;
+
+    rebuildWall();
+    sync();
+    start();
+    ping("사진 준비 완료. 화면을 짧게 밀어 던져보세요.");
+  } catch (err) {
+    if (request === targetRequest) ping(err.message);
+  } finally {
+    e.target.value = "";
+  }
+});
+
+$("throwFile").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const request = ++throwRequest;
+
+  try {
+    const img = await readImage(file);
+    if (request !== throwRequest) return;
+
+    custom = img;
+    document.querySelector('[data-kind="custom"]').disabled = false;
+    icons();
+    select("custom");
+    ping("던질 이미지 준비 완료. 회전 없이 날아갑니다.");
+  } catch (err) {
+    if (request === throwRequest) ping(err.message);
+  } finally {
+    e.target.value = "";
+  }
+});
+
+/* 초기화와 되돌리기 */
+$("clear").onclick = () => {
+  marks = [];
+  flights = [];
+  drag = null;
+  total = 0;
+  sync();
+  start();
+  ping("깨끗해졌어요. 다시 던져보세요.");
+};
+
+$("undo").onclick = () => {
+  const latest = marks.concat(flights)
+    .sort((a, b) => b.born - a.born)[0];
+
+  if (!latest) return;
+
+  marks = marks.filter(m => m !== latest);
+  flights = flights.filter(f => f !== latest);
+  total = Math.max(0, total - 1);
+  sync();
+  start();
+};
+
+$("size").oninput = e => {
+  const size = Number(e.target.value);
+  $("sizeText").textContent =
+    size < 35 ? "작게" : size > 53 ? "크게" : "보통";
+};
+
+$("sound").onclick = () => {
+  sound = !sound;
+  $("sound").textContent = sound ? "효과음 켜짐" : "효과음 꺼짐";
+  $("sound").setAttribute("aria-pressed", String(sound));
+  if (sound) playSound("tomato");
+};
+
+/* 현재 남아 있는 자국을 사진에 저장 */
+$("save").onclick = () => {
+  const out = document.createElement("canvas");
+  out.width = W;
+  out.height = H;
+  const c = out.getContext("2d");
+  c.drawImage(wall, 0, 0);
+
+  const now = performance.now();
+  marks.slice().sort((a, b) => a.born - b.born).forEach(m => {
+    paintMark(c, m, (now - m.impact) / 1000);
+  });
+
+  out.toBlob(blob => {
+    if (!blob) {
+      ping("저장하지 못했어요. 다시 시도해주세요.");
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "igeona-meogeora.png";
+    link.click();
+
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    ping("이미지 저장을 요청했어요. 다운로드 또는 새 이미지 탭을 확인해주세요.");
+  }, "image/png");
+};
+
+rebuildWall();
+icons();
+start();
