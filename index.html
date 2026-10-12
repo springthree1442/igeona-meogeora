@@ -23,7 +23,7 @@
       <div>
         <div class="eyebrow">IGEONA MEOGEORA</div>
         <h1>던져보자...</h1>
-        <p>사진을 올리고, 짧게 밀어서 던져보세요.</p>
+        <p>좋아하는 아이에게 송충이만 줄겁니다.</p>
       </div>
 
       <div class="count">
@@ -71,7 +71,7 @@
 
       <aside aria-label="사진과 물건 설정">
         <div class="panel">
-          <h2>01 &nbsp; 맞힐 사진</h2>
+          <h2>01 &nbsp; 타겟 설정</h2>
 
           <label class="upload">
             ＋ 사진 올리기
@@ -79,7 +79,7 @@
               id="targetFile"
               type="file"
               accept="image/*"
-              aria-label="맞힐 사진 올리기"
+              aria-label="타겟 설정"
             >
           </label>
 
@@ -202,5 +202,113 @@
       새로고침하면 사진과 자국이 초기화됩니다.
     </p>
   </div>
+
+  <!-- 사진 영역선택 창 -->
+  <dialog
+    id="cropDialog"
+    class="crop-dialog"
+    aria-labelledby="cropTitle"
+    aria-describedby="cropHelp"
+  >
+    <div class="crop-content">
+      <div class="crop-header">
+        <div>
+          <div class="eyebrow">IMAGE CUTOUT</div>
+          <h2 id="cropTitle">남길 부분을 색칠해줘</h2>
+        </div>
+
+        <button
+          id="cropCancel"
+          class="crop-close"
+          type="button"
+          aria-label="영역선택 취소"
+        >
+          ✕
+        </button>
+      </div>
+
+      <p id="cropHelp" class="crop-help">
+        색칠한 부분만 남아요.
+        잘못 칠한 부분은 지우개로 지워주세요.
+      </p>
+
+      <div class="crop-tools">
+        <div class="crop-modes" aria-label="브러시 도구">
+          <button
+            id="cropPaint"
+            type="button"
+            aria-pressed="true"
+          >
+            색칠하기
+          </button>
+
+          <button
+            id="cropErase"
+            type="button"
+            aria-pressed="false"
+          >
+            지우개
+          </button>
+        </div>
+
+        <div class="crop-brush-control">
+          <label for="cropBrush">
+            브러시 크기
+            <span id="cropBrushText">40</span>
+          </label>
+
+          <input
+            id="cropBrush"
+            type="range"
+            min="8"
+            max="120"
+            value="40"
+          >
+        </div>
+      </div>
+
+      <div class="crop-workspace">
+        <canvas
+          id="cropCanvas"
+          width="800"
+          height="600"
+          aria-label="남길 사진 영역을 브러시로 색칠하는 화면"
+        ></canvas>
+      </div>
+
+      <div class="crop-options">
+        <button id="cropReset" type="button">
+          선택 초기화
+        </button>
+
+        <button id="cropSelectAll" type="button">
+          전체 선택
+        </button>
+      </div>
+
+      <p
+        id="cropStatus"
+        class="crop-status"
+        role="status"
+        aria-live="polite"
+      >
+        사진 위에서 손가락이나 마우스로 색칠해주세요.
+      </p>
+
+      <div class="crop-footer">
+        <button id="cropOriginal" type="button">
+          오리지 않고 사용
+        </button>
+
+        <button
+          id="cropApply"
+          class="crop-apply"
+          type="button"
+        >
+          선택한 부분 사용
+        </button>
+      </div>
+    </div>
+  </dialog>
 </body>
 </html>
