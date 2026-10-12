@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  >
+
+  <title>이거나 먹어라!</title>
+  <meta
+    name="description"
+    content="사진을 올리고 토마토, 날계란, 재떨이 가루와 원하는 이미지를 던져보세요."
+  >
+
+  <link rel="stylesheet" href="./style.css">
+  <script src="./script.js" defer></script>
+</head>
+
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <div class="eyebrow">IGEONA MEOGEORA</div>
+        <h1>이거나 먹어라!</h1>
+        <p>사진을 올리고, 짧게 밀어서 던져보세요.</p>
+      </div>
+
+      <div class="count">
+        <strong id="count">0</strong>
+        THROWS
+      </div>
+    </header>
+
+    <main>
+      <section aria-label="던지기 공간">
+        <div class="stage">
+          <canvas
+            id="scene"
+            width="1000"
+            height="800"
+            tabindex="0"
+            aria-label="짧게 드래그해서 던지는 화면. 키보드에서는 방향키로 조준하고 스페이스로 던질 수 있습니다."
+          ></canvas>
+
+          <div class="badge">
+            짧게 밀고, 손을 놓으세요 ↗
+          </div>
+        </div>
+
+        <div class="below">
+          <p>
+            화면 어디서든 드래그 · 방향키로 조준 / 스페이스로 던지기
+          </p>
+
+          <div class="actions">
+            <button id="undo" type="button" disabled>
+              하나 지우기
+            </button>
+
+            <button id="clear" type="button">
+              모두 지우기
+            </button>
+
+            <button id="save" type="button">
+              사진 저장
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <aside aria-label="사진과 물건 설정">
+        <div class="panel">
+          <h2>01 &nbsp; 맞힐 사진</h2>
+
+          <label class="upload">
+            ＋ 사진 올리기
+            <input
+              id="targetFile"
+              type="file"
+              accept="image/*"
+              aria-label="맞힐 사진 올리기"
+            >
+          </label>
+
+          <p class="hint">
+            사진은 잘리지 않고 화면 안에 들어갑니다.
+          </p>
+
+          <div
+            id="message"
+            role="status"
+            aria-live="polite"
+          >
+            사진 없이도 벽에 던질 수 있어요.
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>02 &nbsp; 던질 물건</h2>
+
+          <div class="items">
+            <button
+              class="item"
+              type="button"
+              data-kind="tomato"
+              aria-pressed="true"
+            >
+              <canvas
+                width="124"
+                height="108"
+                aria-hidden="true"
+              ></canvas>
+              토마토
+            </button>
+
+            <button
+              class="item"
+              type="button"
+              data-kind="egg"
+              aria-pressed="false"
+            >
+              <canvas
+                width="124"
+                height="108"
+                aria-hidden="true"
+              ></canvas>
+              날계란
+            </button>
+
+            <button
+              class="item"
+              type="button"
+              data-kind="ash"
+              aria-pressed="false"
+            >
+              <canvas
+                width="124"
+                height="108"
+                aria-hidden="true"
+              ></canvas>
+              재떨이 가루
+            </button>
+
+            <button
+              class="item"
+              type="button"
+              data-kind="custom"
+              aria-pressed="false"
+              disabled
+            >
+              <canvas
+                width="124"
+                height="108"
+                aria-hidden="true"
+              ></canvas>
+              내 이미지
+            </button>
+          </div>
+
+          <label class="upload custom">
+            ＋ 던질 이미지 올리기
+            <input
+              id="throwFile"
+              type="file"
+              accept="image/*"
+              aria-label="던질 이미지 올리기"
+            >
+          </label>
+
+          <p class="hint">
+            투명 PNG도 가능해요. 회전 없이 날아갑니다.
+          </p>
+
+          <label class="range" for="size">
+            물건 크기
+            <span id="sizeText">보통</span>
+          </label>
+
+          <input
+            id="size"
+            type="range"
+            min="25"
+            max="65"
+            value="42"
+          >
+
+          <button
+            class="sound"
+            id="sound"
+            type="button"
+            aria-pressed="false"
+          >
+            효과음 꺼짐
+          </button>
+        </div>
+      </aside>
+    </main>
+
+    <p class="note">
+      사진은 이 브라우저에서만 사용됩니다.
+      새로고침하면 사진과 자국이 초기화됩니다.
+    </p>
+  </div>
+</body>
+</html>
