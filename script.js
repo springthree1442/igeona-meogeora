@@ -946,3 +946,514 @@ $("save").onclick = () => {
 rebuildWall();
 icons();
 start();
+
+/* 사진 영역선택 */
+(() => {
+  const dialog = $("cropDialog");
+  const preview = $("cropCanvas");
+
+  if (!dialog || !preview) return;
+
+  const pc = preview.getContext("2d");
+
+  const mask = document.createElement("canvas");
+  const mc = mask.getContext("2d", {
+    willReadFrequently: true
+  });
+
+  const overlay = document.createElement("canvas");
+  const oc = overlay.getContext("2d");
+
+  let source = null;
+  let destination = "target";
+  let mode = "paint";
+  let stroke = null;
+  let paintFrame = 0;
+  let request = 0;
+  let previousOverflow = "";
+
+  function status(text) {
+    $("cropStatus").textContent = text;
+  }
+
+  function setMode(value) {
+    mode = value;
+
+    $("cropPaint").setAttribute(
+      "aria-pressed",
+      String(value === "paint")
+    );
+
+    $("cropErase").setAttribute(
+      "aria-pressed",
+      String(value === "erase")
+    );
+  }
+
+  /* 사진 위에 선택 영역 표시 */
+  function render() {
+    paintFrame = 0;
+    if (!source) return;
+
+    pc.clearRect(0, 0, preview.width, preview.height);
+
+    pc.save();
+    pc.globalAlpha = 0.65;
+    pc.drawImage(
+      source,
+      0,
+      0,
+      preview.width,
+      preview.height
+    );
+    pc.restore();
+
+    oc.clearRect(0, 0, overlay.width, overlay.height);
+    oc.globalCompositeOperation = "source-over";
+    oc.fillStyle = "#f1744999";
+    oc.fillRect(0, 0, overlay.width, overlay.height);
+
+    oc.globalCompositeOperation = "destination-in";
+    oc.drawImage(mask, 0, 0);
+    oc.globalCompositeOperation = "source-over";
+
+    pc.drawImage(overlay, 0, 0);
+  }
+
+  function scheduleRender() {
+    if (!paintFrame) {
+      paintFrame = requestAnimationFrame(render);
+    }
+  }
+
+  function position(e) {
+    const bounds = preview.getBoundingClientRect();
+
+    return {
+      x: (e.clientX - bounds.left) /
+        bounds.width * preview.width,
+      y: (e.clientY - bounds.top) /
+        bounds.height * preview.height
+    };
+  }
+
+  function brushWidth() {
+    const bounds = preview.getBoundingClientRect();
+
+    return Number($("cropBrush").value) *
+      preview.width / bounds.width;
+  }
+
+  /* 선택 마스크에 색칠하거나 지우기 */
+  function paint(from, to) {
+    const width = brushWidth();
+
+    mc.save();
+
+    mc.globalCompositeOperation =
+      mode === "erase"
+        ? "destination-out"
+        : "source-over";
+
+    mc.fillStyle = "#ffffff";
+    mc.strokeStyle = "#ffffff";
+    mc.lineWidth = width;
+    mc.lineCap = "round";
+    mc.lineJoin = "round";
+
+    mc.beginPath();
+    mc.moveTo(from.x, from.y);
+    mc.lineTo(to.x, to.y);
+    mc.stroke();
+
+    mc.beginPath();
+    mc.arc(
+      to.x,
+      to.y,
+      width / 2,
+      0,
+      Math.PI * 2
+    );
+    mc.fill();
+
+    mc.restore();
+    scheduleRender();
+  }
+
+  function endStroke() {
+    const old = stroke;
+    stroke = null;
+
+    if (
+      old &&
+      preview.hasPointerCapture(old.id)
+    ) {
+      preview.releasePointerCapture(old.id);
+    }
+  }
+
+  preview.addEventListener("pointerdown", e => {
+    if (
+      !source ||
+      stroke ||
+      e.isPrimary === false ||
+      e.button > 0
+    ) return;
+
+    e.preventDefault();
+
+    const p = position(e);
+
+    stroke = {
+      id: e.pointerId,
+      last: p
+    };
+
+    preview.setPointerCapture(e.pointerId);
+    paint(p, p);
+
+    status(
+      mode === "paint"
+        ? "주황색으로 표시한 부분만 남아요."
+        : "잘못 선택한 부분을 지우고 있어요."
+    );
+  });
+
+  preview.addEventListener("pointermove", e => {
+    if (
+      !stroke ||
+      stroke.id !== e.pointerId
+    ) return;
+
+    e.preventDefault();
+
+    const p = position(e);
+    paint(stroke.last, p);
+    stroke.last = p;
+  });
+
+  preview.addEventListener("pointerup", e => {
+    if (
+      !stroke ||
+      stroke.id !== e.pointerId
+    ) return;
+
+    paint(stroke.last, position(e));
+    endStroke();
+  });
+
+  preview.addEventListener("pointercancel", e => {
+    if (stroke && stroke.id === e.pointerId) {
+      endStroke();
+    }
+  });
+
+  preview.addEventListener("lostpointercapture", e => {
+    if (stroke && stroke.id === e.pointerId) {
+      stroke = null;
+    }
+  });
+
+  $("cropPaint").onclick = () => {
+    setMode("paint");
+  };
+
+  $("cropErase").onclick = () => {
+    setMode("erase");
+  };
+
+  $("cropBrush").oninput = e => {
+    $("cropBrushText").textContent = e.target.value;
+  };
+
+  $("cropReset").onclick = () => {
+    endStroke();
+
+    mc.clearRect(
+      0, 0,
+      mask.width,
+      mask.height
+    );
+
+    scheduleRender();
+
+    status(
+      "선택을 초기화했어요. 남길 부분을 다시 색칠해주세요."
+    );
+  };
+
+  $("cropSelectAll").onclick = () => {
+    endStroke();
+
+    mc.save();
+    mc.globalCompositeOperation = "source-over";
+    mc.fillStyle = "#ffffff";
+    mc.fillRect(0, 0, mask.width, mask.height);
+    mc.restore();
+
+    scheduleRender();
+
+    status(
+      "전체를 선택했어요. 지우개로 불필요한 부분을 지울 수 있어요."
+    );
+  };
+
+  function closeEditor() {
+    endStroke();
+
+    if (dialog.open) {
+      dialog.close();
+    }
+
+    document.body.style.overflow = previousOverflow;
+    source = null;
+
+    if (paintFrame) {
+      cancelAnimationFrame(paintFrame);
+    }
+
+    paintFrame = 0;
+  }
+
+  $("cropCancel").onclick = () => {
+    request++;
+    closeEditor();
+    ping("사진 선택을 취소했어요.");
+  };
+
+  dialog.addEventListener("cancel", e => {
+    e.preventDefault();
+    $("cropCancel").click();
+  });
+
+  /* 선택한 사진을 실제 시뮬레이션에 적용 */
+  function applyImage(img) {
+    if (destination === "target") {
+      target = img;
+      marks = [];
+      flights = [];
+      total = 0;
+      drag = null;
+
+      rebuildWall();
+      sync();
+      start();
+
+      ping(
+        "타겟 준비 완료. 선택한 사진에 던져보세요."
+      );
+    } else {
+      custom = img;
+
+      document.querySelector(
+        '[data-kind="custom"]'
+      ).disabled = false;
+
+      icons();
+      select("custom");
+
+      ping(
+        "던질 이미지 준비 완료. 회전 없이 날아갑니다."
+      );
+    }
+
+    closeEditor();
+  }
+
+  $("cropOriginal").onclick = () => {
+    if (source) {
+      applyImage(source);
+    }
+  };
+
+  /* 적용할 때 한 번만 픽셀을 확인하고 잘라내기 */
+  $("cropApply").onclick = () => {
+    if (!source) return;
+
+    endStroke();
+
+    const width = mask.width;
+    const height = mask.height;
+
+    const pixels = mc.getImageData(
+      0, 0, width, height
+    ).data;
+
+    let left = width;
+    let top = height;
+    let right = -1;
+    let bottom = -1;
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const alpha =
+          pixels[(y * width + x) * 4 + 3];
+
+        if (alpha > 0) {
+          if (x < left) left = x;
+          if (x > right) right = x;
+          if (y < top) top = y;
+          if (y > bottom) bottom = y;
+        }
+      }
+    }
+
+    if (right < left) {
+      status(
+        "아직 선택한 부분이 없어요. 색칠하거나 '오리지 않고 사용'을 눌러주세요."
+      );
+      return;
+    }
+
+    const cut = document.createElement("canvas");
+    cut.width = width;
+    cut.height = height;
+
+    const cc = cut.getContext("2d");
+
+    cc.drawImage(
+      source,
+      0, 0,
+      width, height
+    );
+
+    cc.globalCompositeOperation = "destination-in";
+    cc.drawImage(mask, 0, 0);
+
+    /* 투명한 부분만 선택했는지 확인 */
+    const visible = cc.getImageData(
+      0, 0, width, height
+    ).data;
+
+    let found = false;
+
+    for (let i = 3; i < visible.length; i += 4) {
+      if (visible[i] > 0) {
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      status(
+        "투명한 부분만 선택했어요. 이미지가 보이는 부분을 색칠해주세요."
+      );
+      return;
+    }
+
+    /* 선택한 부분 주변의 빈 여백 제거 */
+    left = Math.max(0, left - 2);
+    top = Math.max(0, top - 2);
+    right = Math.min(width - 1, right + 2);
+    bottom = Math.min(height - 1, bottom + 2);
+
+    const result = document.createElement("canvas");
+    result.width = right - left + 1;
+    result.height = bottom - top + 1;
+
+    result.getContext("2d").drawImage(
+      cut,
+      left,
+      top,
+      result.width,
+      result.height,
+      0,
+      0,
+      result.width,
+      result.height
+    );
+
+    applyImage(result);
+  };
+
+  /* 두 업로드 버튼을 영역선택 창에 연결 */
+  async function choosePhoto(e, type) {
+    e.stopImmediatePropagation();
+
+    const input = e.currentTarget;
+    const file = input.files[0];
+
+    if (!file) return;
+
+    const serial = ++request;
+
+    ping("사진을 불러오는 중…");
+
+    try {
+      const img = await readImage(file);
+
+      if (serial !== request) return;
+
+      if (dialog.open) {
+        closeEditor();
+      }
+
+      source = img;
+      destination = type;
+
+      const scale = Math.min(
+        1,
+        1000 / Math.max(img.width, img.height)
+      );
+
+      preview.width = Math.max(
+        1,
+        Math.round(img.width * scale)
+      );
+
+      preview.height = Math.max(
+        1,
+        Math.round(img.height * scale)
+      );
+
+      mask.width = overlay.width = preview.width;
+      mask.height = overlay.height = preview.height;
+
+      setMode("paint");
+
+      $("cropTitle").textContent =
+        type === "target"
+          ? "타겟에서 남길 부분을 색칠해줘"
+          : "던질 부분을 색칠해줘";
+
+      status(
+        "주황색으로 색칠한 부분만 남아요. 전체 사진을 쓰려면 '오리지 않고 사용'을 눌러주세요."
+      );
+
+      previousOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+
+      dialog.showModal();
+      render();
+
+      ping("남길 영역을 선택한 뒤 적용해주세요.");
+    } catch (err) {
+      if (serial === request) {
+        if (source) closeEditor();
+
+        ping(
+          err.message ||
+          "사진을 불러오지 못했어요."
+        );
+      }
+    } finally {
+      input.value = "";
+    }
+  }
+
+  /*
+   * 기존 업로드 처리보다 먼저 실행하여
+   * 영역선택 완료 후 사진을 적용합니다.
+   */
+  $("targetFile").addEventListener(
+    "change",
+    e => choosePhoto(e, "target"),
+    true
+  );
+
+  $("throwFile").addEventListener(
+    "change",
+    e => choosePhoto(e, "custom"),
+    true
+  );
+})();
